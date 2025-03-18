@@ -446,21 +446,8 @@ def smooth_and_normalize_tracks(tracks, gcamp_bleach_params, rfp_bleach_params):
     
     return tracks
 
-
 def interactive_landing_frame_selection(tracks):
-    """
-    Allow manual selection of landing frames for each particle with validation.
-    Includes options to confirm auto-detection or discard problematic tracks.
-    
-    Args:
-    tracks (pd.DataFrame): DataFrame containing track data for all particles
-    
-    Returns:
-    dict: Updated landing frames for each particle
-    """
     updated_landing_frames = {}
-    
-    # Get all unique particles as a list to enable navigation
     particles = sorted(tracks['particle'].unique())
     particle_idx = 0
     
@@ -468,237 +455,415 @@ def interactive_landing_frame_selection(tracks):
         particle = particles[particle_idx]
         group = tracks[tracks['particle'] == particle].copy()
         
-        # Create figure with proper layout
         fig = plt.figure(figsize=(10, 15))
-        
-        # Create layout with 3 plot axes and a small area at bottom for buttons
         gs = gridspec.GridSpec(4, 1, height_ratios=[3, 3, 3, 0.5])
-        
         axs = [plt.subplot(gs[0]), plt.subplot(gs[1]), plt.subplot(gs[2])]
         
-        # Plot GCaMP MFI
+        # Plot setup (unchanged)
         axs[0].plot(group['frame'], group['MFI_GCaMP'], label='GCaMP')
         axs[0].set_ylabel('MFI_GCaMP')
         axs[0].set_title(f'Particle {particle} ({particle_idx+1}/{len(particles)}): Use arrow keys or click to move, Enter to set frame')
         axs[0].legend()
-        
-        # Plot RFP MFI
         axs[1].plot(group['frame'], group['MFI_RFP'], label='RFP')
         axs[1].set_ylabel('MFI_RFP')
         axs[1].legend()
-        
-        # Plot ratio
         axs[2].plot(group['frame'], group['ratio'], label='GCaMP/RFP Ratio')
         axs[2].set_ylabel('Ratio')
         axs[2].set_xlabel('Frame')
         axs[2].legend()
-        
-        # Link x-axes for synchronized zooming/panning
         axs[1].sharex(axs[0])
         axs[2].sharex(axs[0])
         
-        # Get available frames for this particle
         available_frames = sorted(group['frame'].unique())
-        
-        # Set initial landing frame to the auto-detected one
         auto_landing_frame = group['landing_frame'].iloc[0]
-        
-        # If frame is not in available frames, use the closest one
         if auto_landing_frame not in available_frames:
             current_frame = min(available_frames, key=lambda x: abs(x - auto_landing_frame))
         else:
             current_frame = auto_landing_frame
-        
-        # Find the appropriate index for the current frame
         frame_idx = available_frames.index(current_frame)
         
-        # Crosshair lines (vertical and horizontal)
-        vlines = []
+        # Crosshair setup (unchanged)
+        vlines = [ax.axvline(x=current_frame, color='r', linestyle='--') for ax in axs]
         hlines = []
-        for ax_idx, ax in enumerate(axs):
-            vline = ax.axvline(x=current_frame, color='r', linestyle='--')
-            vlines.append(vline)
-            
-            # Get y-value for this frame
-            y_values = group.loc[group['frame'] == current_frame]
-            
-            if len(y_values) > 0:
-                if ax_idx == 0:
-                    y_val = y_values['MFI_GCaMP'].values[0]
-                elif ax_idx == 1:
-                    y_val = y_values['MFI_RFP'].values[0]
-                else:
-                    y_val = y_values['ratio'].values[0]
-                    
-                hline = ax.axhline(y=y_val, color='r', linestyle='--')
-                hlines.append(hline)
-            else:
-                # No data at this frame, just add a placeholder horizontal line
-                hline = ax.axhline(y=0, color='r', linestyle='--', alpha=0)
-                hlines.append(hline)
+        for i, ax in enumerate(axs):
+            y_vals = group.loc[group['frame'] == current_frame]
+            y_val = y_vals['MFI_GCaMP'].values[0] if i == 0 else y_vals['MFI_RFP'].values[0] if i == 1 else y_vals['ratio'].values[0]
+            hlines.append(ax.axhline(y=y_val, color='r', linestyle='--'))
         
-        # Status text at the bottom
-        status_text = plt.figtext(0.5, 0.01, f"Current frame: {current_frame}", ha="center", fontsize=10, 
-                               bbox={"facecolor":"white", "alpha":0.5, "pad":5})
+        status_text = plt.figtext(0.5, 0.01, f"Current frame: {current_frame}", ha="center", fontsize=10,
+                                  bbox={"facecolor":"white", "alpha":0.5, "pad":5})
         
-        # Function to update crosshair position
         def update_crosshair(frame):
             nonlocal current_frame, frame_idx, status_text
-            
-            # Update the current frame and index
             current_frame = frame
             frame_idx = available_frames.index(frame)
-            
-            # Update all vertical lines
             for i, ax in enumerate(axs):
                 vlines[i].set_xdata(frame)
-                
-                # Update horizontal line position
-                y_values = group.loc[group['frame'] == frame]
-                
-                if len(y_values) > 0:
-                    if i == 0:
-                        y_val = y_values['MFI_GCaMP'].values[0]
-                    elif i == 1:
-                        y_val = y_values['MFI_RFP'].values[0]
-                    else:
-                        y_val = y_values['ratio'].values[0]
-                        
-                    hlines[i].set_ydata(y_val)
-                    hlines[i].set_alpha(1)
-                else:
-                    hlines[i].set_alpha(0)
-            
-            # Update status text
+                y_vals = group.loc[group['frame'] == frame]
+                y_val = y_vals['MFI_GCaMP'].values[0] if i == 0 else y_vals['MFI_RFP'].values[0] if i == 1 else y_vals['ratio'].values[0]
+                hlines[i].set_ydata(y_val)
             status_text.set_text(f"Current frame: {frame}")
-            
             fig.canvas.draw_idle()
         
-        # Create button axes with appropriate sizes
+        # Button setup (unchanged)
         ax_prev = plt.axes([0.1, 0.05, 0.15, 0.05])
         ax_next = plt.axes([0.27, 0.05, 0.15, 0.05])
         ax_set = plt.axes([0.44, 0.05, 0.15, 0.05])
         ax_confirm = plt.axes([0.61, 0.05, 0.15, 0.05])
         ax_discard = plt.axes([0.78, 0.05, 0.15, 0.05])
-        
-        # Create buttons
         button_prev = Button(ax_prev, '← Previous', color='lightblue', hovercolor='skyblue')
         button_next = Button(ax_next, 'Next →', color='lightblue', hovercolor='skyblue')
         button_set = Button(ax_set, 'Set Landing', color='lightgreen', hovercolor='lime')
         button_confirm = Button(ax_confirm, 'Confirm Auto', color='lightyellow', hovercolor='yellow')
         button_discard = Button(ax_discard, 'Discard Track', color='salmon', hovercolor='red')
         
-        # Button click handlers
+        # Add selection_made flag
+        selection_made = False
+        
+        # Updated button handlers
         def handle_prev(event):
-            nonlocal particle_idx
+            nonlocal particle_idx, selection_made
+            selection_made = True
             if particle_idx > 0:
                 particle_idx -= 1
                 plt.close(fig)
         
         def handle_next(event):
-            nonlocal particle_idx
+            nonlocal particle_idx, selection_made
+            selection_made = True
             if particle_idx < len(particles) - 1:
                 particle_idx += 1
                 plt.close(fig)
         
         def handle_set(event):
+            nonlocal particle_idx, selection_made
             updated_landing_frames[particle] = current_frame
-            nonlocal particle_idx
+            selection_made = True
             if particle_idx < len(particles) - 1:
                 particle_idx += 1
             else:
-                # Important fix: when we're at the last particle, set idx beyond the array length
-                # to exit the while loop
                 particle_idx = len(particles)
             plt.close(fig)
         
         def handle_confirm(event):
+            nonlocal particle_idx, selection_made
             updated_landing_frames[particle] = auto_landing_frame
-            nonlocal particle_idx
+            selection_made = True
             if particle_idx < len(particles) - 1:
                 particle_idx += 1
             else:
-                # Important fix: when we're at the last particle, set idx beyond the array length
-                # to exit the while loop
                 particle_idx = len(particles)
             plt.close(fig)
         
         def handle_discard(event):
-            # Don't add to updated_landing_frames
-            nonlocal particle_idx
+            nonlocal particle_idx, selection_made
+            selection_made = True  # Mark that an action was taken, but don't add to updated_landing_frames
             if particle_idx < len(particles) - 1:
                 particle_idx += 1
             else:
-                # Important fix: when we're at the last particle, set idx beyond the array length
-                # to exit the while loop
                 particle_idx = len(particles)
             plt.close(fig)
         
-        # Function to handle mouse clicks on the plot
-        def on_plot_click(event):
-            # Only process clicks inside the plot axes
-            if event.inaxes in axs:
-                # Get the x-coordinate (frame) of the click
-                clicked_frame = event.xdata
-                
-                # Find the closest available frame to where we clicked
-                closest_frame = min(available_frames, key=lambda x: abs(x - clicked_frame))
-                
-                # Update the crosshair to the new position
-                update_crosshair(closest_frame)
-        
-        # Connect button event handlers
+        # Connect buttons (unchanged)
         button_prev.on_clicked(handle_prev)
         button_next.on_clicked(handle_next)
         button_set.on_clicked(handle_set)
         button_confirm.on_clicked(handle_confirm)
         button_discard.on_clicked(handle_discard)
         
-        # Function to handle key press events
+        # Key press and click handlers (unchanged)
         def on_key_press(event):
-            nonlocal frame_idx, current_frame
-            
+            nonlocal frame_idx, current_frame, particle_idx, selection_made
             if event.key == 'right' and frame_idx < len(available_frames) - 1:
                 frame_idx += 1
                 current_frame = available_frames[frame_idx]
                 update_crosshair(current_frame)
-                
             elif event.key == 'left' and frame_idx > 0:
                 frame_idx -= 1
                 current_frame = available_frames[frame_idx]
                 update_crosshair(current_frame)
-                
             elif event.key == 'enter':
                 updated_landing_frames[particle] = current_frame
-                nonlocal particle_idx
+                selection_made = True
                 if particle_idx < len(particles) - 1:
                     particle_idx += 1
                 else:
-                    # Important fix: when we're at the last particle, set idx beyond the array length
-                    # to exit the while loop
-                    particle_idx = len(particles) 
+                    particle_idx = len(particles)
                 plt.close(fig)
         
-        # Connect the key press event and the mouse click event
         fig.canvas.mpl_connect('key_press_event', on_key_press)
-        fig.canvas.mpl_connect('button_press_event', on_plot_click)
+        fig.canvas.mpl_connect('button_press_event', lambda event: on_plot_click(event) if event.inaxes in axs else None)
         
-        # Show whether this is the last particle
+        def on_plot_click(event):
+            clicked_frame = min(available_frames, key=lambda x: abs(x - event.xdata))
+            update_crosshair(clicked_frame)
+        
         if particle_idx == len(particles) - 1:
-            plt.figtext(0.5, 0.95, "LAST TRACK", ha="center", fontsize=12, 
-                       color="red", weight="bold")
+            plt.figtext(0.5, 0.95, "LAST TRACK", ha="center", fontsize=12, color="red", weight="bold")
         
-        # Adjust spacing between subplots
-        plt.tight_layout(rect=[0, 0.12, 1, 0.98])  # Adjust layout but leave room for buttons
-        
-        # Make sure figure has focus for keyboard events
+        plt.tight_layout(rect=[0, 0.12, 1, 0.98])
         fig.canvas.draw()
         fig.canvas.flush_events()
         
         plt.show()
         
-        # If no selection was made, use auto-detected landing frame
-        if particle not in updated_landing_frames:
+        # Only add auto-detected frame if no selection was made
+        if not selection_made and particle not in updated_landing_frames:
             updated_landing_frames[particle] = auto_landing_frame
     
     return updated_landing_frames
+# def interactive_landing_frame_selection(tracks):
+#     """
+#     Allow manual selection of landing frames for each particle with validation.
+#     Includes options to confirm auto-detection or discard problematic tracks.
+    
+#     Args:
+#     tracks (pd.DataFrame): DataFrame containing track data for all particles
+    
+#     Returns:
+#     dict: Updated landing frames for each particle
+#     """
+#     updated_landing_frames = {}
+    
+#     # Get all unique particles as a list to enable navigation
+#     particles = sorted(tracks['particle'].unique())
+#     particle_idx = 0
+    
+#     while particle_idx < len(particles):
+#         particle = particles[particle_idx]
+#         group = tracks[tracks['particle'] == particle].copy()
+        
+#         # Create figure with proper layout
+#         fig = plt.figure(figsize=(10, 15))
+        
+#         # Create layout with 3 plot axes and a small area at bottom for buttons
+#         gs = gridspec.GridSpec(4, 1, height_ratios=[3, 3, 3, 0.5])
+        
+#         axs = [plt.subplot(gs[0]), plt.subplot(gs[1]), plt.subplot(gs[2])]
+        
+#         # Plot GCaMP MFI
+#         axs[0].plot(group['frame'], group['MFI_GCaMP'], label='GCaMP')
+#         axs[0].set_ylabel('MFI_GCaMP')
+#         axs[0].set_title(f'Particle {particle} ({particle_idx+1}/{len(particles)}): Use arrow keys or click to move, Enter to set frame')
+#         axs[0].legend()
+        
+#         # Plot RFP MFI
+#         axs[1].plot(group['frame'], group['MFI_RFP'], label='RFP')
+#         axs[1].set_ylabel('MFI_RFP')
+#         axs[1].legend()
+        
+#         # Plot ratio
+#         axs[2].plot(group['frame'], group['ratio'], label='GCaMP/RFP Ratio')
+#         axs[2].set_ylabel('Ratio')
+#         axs[2].set_xlabel('Frame')
+#         axs[2].legend()
+        
+#         # Link x-axes for synchronized zooming/panning
+#         axs[1].sharex(axs[0])
+#         axs[2].sharex(axs[0])
+        
+#         # Get available frames for this particle
+#         available_frames = sorted(group['frame'].unique())
+        
+#         # Set initial landing frame to the auto-detected one
+#         auto_landing_frame = group['landing_frame'].iloc[0]
+        
+#         # If frame is not in available frames, use the closest one
+#         if auto_landing_frame not in available_frames:
+#             current_frame = min(available_frames, key=lambda x: abs(x - auto_landing_frame))
+#         else:
+#             current_frame = auto_landing_frame
+        
+#         # Find the appropriate index for the current frame
+#         frame_idx = available_frames.index(current_frame)
+        
+#         # Crosshair lines (vertical and horizontal)
+#         vlines = []
+#         hlines = []
+#         for ax_idx, ax in enumerate(axs):
+#             vline = ax.axvline(x=current_frame, color='r', linestyle='--')
+#             vlines.append(vline)
+            
+#             # Get y-value for this frame
+#             y_values = group.loc[group['frame'] == current_frame]
+            
+#             if len(y_values) > 0:
+#                 if ax_idx == 0:
+#                     y_val = y_values['MFI_GCaMP'].values[0]
+#                 elif ax_idx == 1:
+#                     y_val = y_values['MFI_RFP'].values[0]
+#                 else:
+#                     y_val = y_values['ratio'].values[0]
+                    
+#                 hline = ax.axhline(y=y_val, color='r', linestyle='--')
+#                 hlines.append(hline)
+#             else:
+#                 # No data at this frame, just add a placeholder horizontal line
+#                 hline = ax.axhline(y=0, color='r', linestyle='--', alpha=0)
+#                 hlines.append(hline)
+        
+#         # Status text at the bottom
+#         status_text = plt.figtext(0.5, 0.01, f"Current frame: {current_frame}", ha="center", fontsize=10, 
+#                                bbox={"facecolor":"white", "alpha":0.5, "pad":5})
+        
+#         # Function to update crosshair position
+#         def update_crosshair(frame):
+#             nonlocal current_frame, frame_idx, status_text
+            
+#             # Update the current frame and index
+#             current_frame = frame
+#             frame_idx = available_frames.index(frame)
+            
+#             # Update all vertical lines
+#             for i, ax in enumerate(axs):
+#                 vlines[i].set_xdata(frame)
+                
+#                 # Update horizontal line position
+#                 y_values = group.loc[group['frame'] == frame]
+                
+#                 if len(y_values) > 0:
+#                     if i == 0:
+#                         y_val = y_values['MFI_GCaMP'].values[0]
+#                     elif i == 1:
+#                         y_val = y_values['MFI_RFP'].values[0]
+#                     else:
+#                         y_val = y_values['ratio'].values[0]
+                        
+#                     hlines[i].set_ydata(y_val)
+#                     hlines[i].set_alpha(1)
+#                 else:
+#                     hlines[i].set_alpha(0)
+            
+#             # Update status text
+#             status_text.set_text(f"Current frame: {frame}")
+            
+#             fig.canvas.draw_idle()
+        
+#         # Create button axes with appropriate sizes
+#         ax_prev = plt.axes([0.1, 0.05, 0.15, 0.05])
+#         ax_next = plt.axes([0.27, 0.05, 0.15, 0.05])
+#         ax_set = plt.axes([0.44, 0.05, 0.15, 0.05])
+#         ax_confirm = plt.axes([0.61, 0.05, 0.15, 0.05])
+#         ax_discard = plt.axes([0.78, 0.05, 0.15, 0.05])
+        
+#         # Create buttons
+#         button_prev = Button(ax_prev, '← Previous', color='lightblue', hovercolor='skyblue')
+#         button_next = Button(ax_next, 'Next →', color='lightblue', hovercolor='skyblue')
+#         button_set = Button(ax_set, 'Set Landing', color='lightgreen', hovercolor='lime')
+#         button_confirm = Button(ax_confirm, 'Confirm Auto', color='lightyellow', hovercolor='yellow')
+#         button_discard = Button(ax_discard, 'Discard Track', color='salmon', hovercolor='red')
+        
+#         # Button click handlers
+#         def handle_prev(event):
+#             nonlocal particle_idx
+#             if particle_idx > 0:
+#                 particle_idx -= 1
+#                 plt.close(fig)
+        
+#         def handle_next(event):
+#             nonlocal particle_idx
+#             if particle_idx < len(particles) - 1:
+#                 particle_idx += 1
+#                 plt.close(fig)
+        
+#         def handle_set(event):
+#             updated_landing_frames[particle] = current_frame
+#             nonlocal particle_idx
+#             if particle_idx < len(particles) - 1:
+#                 particle_idx += 1
+#             else:
+#                 # Important fix: when we're at the last particle, set idx beyond the array length
+#                 # to exit the while loop
+#                 particle_idx = len(particles)
+#             plt.close(fig)
+        
+#         def handle_confirm(event):
+#             updated_landing_frames[particle] = auto_landing_frame
+#             nonlocal particle_idx
+#             if particle_idx < len(particles) - 1:
+#                 particle_idx += 1
+#             else:
+#                 # Important fix: when we're at the last particle, set idx beyond the array length
+#                 # to exit the while loop
+#                 particle_idx = len(particles)
+#             plt.close(fig)
+        
+#         def handle_discard(event):
+#             # Don't add to updated_landing_frames
+#             nonlocal particle_idx
+#             if particle_idx < len(particles) - 1:
+#                 particle_idx += 1
+#             else:
+#                 # Important fix: when we're at the last particle, set idx beyond the array length
+#                 # to exit the while loop
+#                 particle_idx = len(particles)
+#             plt.close(fig)
+        
+#         # Function to handle mouse clicks on the plot
+#         def on_plot_click(event):
+#             # Only process clicks inside the plot axes
+#             if event.inaxes in axs:
+#                 # Get the x-coordinate (frame) of the click
+#                 clicked_frame = event.xdata
+                
+#                 # Find the closest available frame to where we clicked
+#                 closest_frame = min(available_frames, key=lambda x: abs(x - clicked_frame))
+                
+#                 # Update the crosshair to the new position
+#                 update_crosshair(closest_frame)
+        
+#         # Connect button event handlers
+#         button_prev.on_clicked(handle_prev)
+#         button_next.on_clicked(handle_next)
+#         button_set.on_clicked(handle_set)
+#         button_confirm.on_clicked(handle_confirm)
+#         button_discard.on_clicked(handle_discard)
+        
+#         # Function to handle key press events
+#         def on_key_press(event):
+#             nonlocal frame_idx, current_frame
+            
+#             if event.key == 'right' and frame_idx < len(available_frames) - 1:
+#                 frame_idx += 1
+#                 current_frame = available_frames[frame_idx]
+#                 update_crosshair(current_frame)
+                
+#             elif event.key == 'left' and frame_idx > 0:
+#                 frame_idx -= 1
+#                 current_frame = available_frames[frame_idx]
+#                 update_crosshair(current_frame)
+                
+#             elif event.key == 'enter':
+#                 updated_landing_frames[particle] = current_frame
+#                 nonlocal particle_idx
+#                 if particle_idx < len(particles) - 1:
+#                     particle_idx += 1
+#                 else:
+#                     # Important fix: when we're at the last particle, set idx beyond the array length
+#                     # to exit the while loop
+#                     particle_idx = len(particles) 
+#                 plt.close(fig)
+        
+#         # Connect the key press event and the mouse click event
+#         fig.canvas.mpl_connect('key_press_event', on_key_press)
+#         fig.canvas.mpl_connect('button_press_event', on_plot_click)
+        
+#         # Show whether this is the last particle
+#         if particle_idx == len(particles) - 1:
+#             plt.figtext(0.5, 0.95, "LAST TRACK", ha="center", fontsize=12, 
+#                        color="red", weight="bold")
+        
+#         # Adjust spacing between subplots
+#         plt.tight_layout(rect=[0, 0.12, 1, 0.98])  # Adjust layout but leave room for buttons
+        
+#         # Make sure figure has focus for keyboard events
+#         fig.canvas.draw()
+#         fig.canvas.flush_events()
+        
+#         plt.show()
+        
+#         # If no selection was made, use auto-detected landing frame
+#         if particle not in updated_landing_frames:
+#             updated_landing_frames[particle] = auto_landing_frame
+    
+#     return updated_landing_frames
