@@ -4,7 +4,9 @@ A Python-based analysis pipeline for tracking cellular calcium dynamics using ra
 
 ## Overview
 
-This software package processes and analyzes time-lapse microscopy data of B cells stained with calcium-sensitive GCaMP and RFP markers. The pipeline handles segmentation, tracking, and quantitative analysis of cellular calcium responses.
+This software package processes and analyzes time-lapse microscopy data of cells expressing (or stained with) calcium-sensitive indicators (GCaMP, fluo-4 etc.) and calcium insensitive markers (RFP). The pipeline handles segmentation, tracking, and quantitative analysis of cellular calcium responses.
+
+![image](https://github.com/user-attachments/assets/6bff13b0-1044-4742-b0d4-e8768a697b1c)
 
 The workflow includes:
 
